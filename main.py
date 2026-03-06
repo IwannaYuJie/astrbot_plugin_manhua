@@ -54,7 +54,7 @@ class Main(star.Star):
         self.config = config if config is not None else {}
 
     @filter.command_group("manhua", alias={"mh"})
-    def manhua(self) -> None:
+    def manhua(self, event: AstrMessageEvent) -> None:
         """连续分镜命令。"""
 
     @manhua.command("help")
@@ -112,6 +112,9 @@ class Main(star.Star):
         continuity_fallback_notified = False
         previous_frame: Path | None = seed_image_path
         next_index = 1
+        frame_retry_attempts = max(0, self._cfg_int("frame_retry_attempts", 2))
+        total_attempts = frame_retry_attempts + 1
+        skipped_frames: list[int] = []
 
         if seed_image_path and self._cfg_bool("show_reference_as_first_frame", True):
             reference_plan = FramePlan(
@@ -138,46 +141,91 @@ class Main(star.Star):
             async with httpx.AsyncClient(timeout=timeout) as client:
                 for frame_index in range(next_index, frame_count + 1):
                     current_reference = previous_frame
-                    frame_plan = await self._plan_frame(
-                        event=event,
-                        story_prompt=story_prompt,
-                        frame_index=frame_index,
-                        frame_count=frame_count,
-                        prompt_history=prompt_history,
-                        reference_image=current_reference,
-                        has_user_reference=seed_image_path is not None,
-                    )
+                    try:
+                        frame_plan = await self._plan_frame(
+                            event=event,
+                            story_prompt=story_prompt,
+                            frame_index=frame_index,
+                            frame_count=frame_count,
+                            prompt_history=prompt_history,
+                            reference_image=current_reference,
+                            has_user_reference=seed_image_path is not None,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "Frame planner failed on frame %s, fallback to deterministic prompt: %s",
+                            frame_index,
+                            exc,
+                        )
+                        frame_plan = self._build_fallback_frame_plan(
+                            story_prompt=story_prompt,
+                            frame_index=frame_index,
+                            frame_count=frame_count,
+                            has_reference=current_reference is not None,
+                        )
 
-                    use_reference = current_reference is not None
+                    use_edit_generation = (
+                        current_reference is not None
+                        and client_cfg.prefer_edit_for_continuity
+                    )
                     image_path: Path | None = None
-                    if use_reference and client_cfg.prefer_edit_for_continuity:
+                    last_error: Exception | None = None
+                    for attempt in range(1, total_attempts + 1):
                         try:
-                            image_path = await self._generate_from_edit(
-                                client=client,
-                                cfg=client_cfg,
-                                prompt=frame_plan.prompt,
-                                reference_image=current_reference,
-                                temp_dir=temp_dir,
-                            )
+                            if use_edit_generation and current_reference is not None:
+                                try:
+                                    image_path = await self._generate_from_edit(
+                                        client=client,
+                                        cfg=client_cfg,
+                                        prompt=frame_plan.prompt,
+                                        reference_image=current_reference,
+                                        temp_dir=temp_dir,
+                                    )
+                                except Exception as exc:
+                                    logger.warning(
+                                        "Edit endpoint failed on frame %s, fallback to text-only generation: %s",
+                                        frame_index,
+                                        exc,
+                                    )
+                                    use_edit_generation = False
+                                    if not continuity_fallback_notified:
+                                        continuity_fallback_notified = True
+                                        yield event.plain_result(
+                                            "图片编辑接口调用失败，已回退到仅文本方式继续生成。"
+                                        )
+
+                            if image_path is None:
+                                image_path = await self._generate_from_text(
+                                    client=client,
+                                    cfg=client_cfg,
+                                    prompt=frame_plan.prompt,
+                                    temp_dir=temp_dir,
+                                )
+                            break
                         except Exception as exc:
+                            last_error = exc
+                            image_path = None
                             logger.warning(
-                                "Edit endpoint failed on frame %s, fallback to text-only generation: %s",
+                                "Frame %s generation failed on attempt %s/%s: %s",
                                 frame_index,
+                                attempt,
+                                total_attempts,
                                 exc,
                             )
-                            if not continuity_fallback_notified:
-                                continuity_fallback_notified = True
+                            if attempt < total_attempts:
                                 yield event.plain_result(
-                                    "图片编辑接口调用失败，已回退到仅文本方式继续生成。"
+                                    f"第 {frame_index} 帧生成失败，正在重试 "
+                                    f"({attempt + 1}/{total_attempts})："
+                                    f"{self._summarize_error(exc)}"
                                 )
 
                     if image_path is None:
-                        image_path = await self._generate_from_text(
-                            client=client,
-                            cfg=client_cfg,
-                            prompt=frame_plan.prompt,
-                            temp_dir=temp_dir,
+                        skipped_frames.append(frame_index)
+                        yield event.plain_result(
+                            f"第 {frame_index} 帧生成失败，已跳过并继续后续帧："
+                            f"{self._summarize_error(last_error)}"
                         )
+                        continue
 
                     previous_frame = image_path
                     prompt_history.append(frame_plan.prompt)
@@ -190,6 +238,11 @@ class Main(star.Star):
                                 "show_generated_prompt", True
                             ),
                         )
+                    )
+                if skipped_frames:
+                    yield event.plain_result(
+                        "已跳过失败帧："
+                        + "、".join(str(index) for index in skipped_frames)
                     )
         except Exception as exc:
             logger.error("Failed to generate sequential images: %s", exc)
@@ -415,12 +468,7 @@ class Main(star.Star):
         try:
             payload = json.loads(cleaned)
         except Exception:
-            match = re.search(r"\{.*\}", cleaned, flags=re.S)
-            if match:
-                try:
-                    payload = json.loads(match.group(0))
-                except Exception:
-                    payload = None
+            payload = self._extract_first_json_object(cleaned)
 
         if not isinstance(payload, dict):
             return FramePlan(
@@ -438,6 +486,17 @@ class Main(star.Star):
             prompt=prompt,
             source="LLM 规划",
         )
+
+    def _extract_first_json_object(self, text: str) -> dict[str, Any] | None:
+        decoder = json.JSONDecoder()
+        for match in re.finditer(r"\{", text):
+            try:
+                candidate, _ = decoder.raw_decode(text[match.start() :])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(candidate, dict):
+                return candidate
+        return None
 
     def _build_fallback_frame_plan(
         self,
@@ -812,3 +871,11 @@ class Main(star.Star):
 
     def _cfg_max_frames(self) -> int:
         return max(MIN_FRAMES, min(self._cfg_int("max_frames", 6), MAX_FRAMES_FALLBACK))
+
+    def _summarize_error(self, exc: Exception | None) -> str:
+        if exc is None:
+            return "未知错误"
+        text = str(exc).strip() or exc.__class__.__name__
+        if len(text) > 120:
+            return text[:117] + "..."
+        return text

@@ -70,6 +70,12 @@
     "description": "HTTP 超时时间（秒）",
     "default": 120
   },
+  "frame_retry_attempts": {
+    "type": "int",
+    "description": "单帧生成失败后的重试次数",
+    "hint": "每一帧失败后会按此次数重试；仍失败时会跳过该帧并继续后续帧。",
+    "default": 2
+  },
   "default_frames": {
     "type": "int",
     "description": "未填写时的默认帧数",
