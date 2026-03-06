@@ -1,6 +1,6 @@
 name: astrbot_plugin_manhua
-desc: Generate sequential images from text with optional reference-image continuity and prompt planning.
-display_name: Sequential Image Storyboard
+desc: 根据文本生成连续分镜图片，支持参考图续画与逐帧提示词规划。
+display_name: 连续分镜生成器
 author: IwannaYuJie
 repo: "https://github.com/IwannaYuJie/astrbot_plugin_manhua"
 version: 0.2.0

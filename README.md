@@ -1,4 +1,4 @@
-# astrbot_plugin_manhua
+# AstrBot 连续分镜插件
 
 根据单条提示词、上传的参考图，或回复中的图片，生成连续分镜图片。
 

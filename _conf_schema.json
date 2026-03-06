@@ -1,142 +1,142 @@
 {
   "source_mode": {
     "type": "string",
-    "description": "Image backend mode",
+    "description": "图片后端模式",
     "options": ["auto", "astrbot_provider", "openai_compatible"],
-    "hint": "auto tries the selected AstrBot provider first and then falls back to the plugin-local OpenAI-compatible settings.",
+    "hint": "auto 会先尝试当前选择的 AstrBot provider，失败后再回退到插件内单独配置的 OpenAI 兼容接口。",
     "default": "auto"
   },
   "astrbot_provider_id": {
     "type": "string",
-    "description": "AstrBot image provider ID",
+    "description": "AstrBot 图片 provider ID",
     "_special": "select_provider",
-    "hint": "Used when source_mode is astrbot_provider or auto.",
+    "hint": "当 source_mode 为 astrbot_provider 或 auto 时使用。",
     "default": ""
   },
   "use_current_provider_when_empty": {
     "type": "bool",
-    "description": "Use the current chat provider when provider ID is empty",
+    "description": "当 provider ID 为空时使用当前会话 provider",
     "default": true
   },
   "openai_base_url": {
     "type": "string",
-    "description": "OpenAI-compatible base URL",
-    "hint": "Example: https://api.openai.com/v1",
+    "description": "OpenAI 兼容接口 Base URL",
+    "hint": "示例：https://api.openai.com/v1",
     "default": ""
   },
   "openai_api_key": {
     "type": "string",
-    "description": "OpenAI-compatible API key",
+    "description": "OpenAI 兼容接口 API Key",
     "default": ""
   },
   "image_model": {
     "type": "string",
-    "description": "Image model name",
-    "hint": "Example: gpt-image-1 or any model exposed by your image API.",
+    "description": "图片模型名称",
+    "hint": "示例：gpt-image-1，或你的图片接口暴露出的任意模型名。",
     "default": ""
   },
   "generation_endpoint": {
     "type": "string",
-    "description": "Text-to-image endpoint",
-    "hint": "Can be a full URL or a relative path such as /images/generations.",
+    "description": "文生图接口地址",
+    "hint": "可以填写完整 URL，也可以填写相对路径，例如 /images/generations。",
     "default": "/images/generations"
   },
   "edit_endpoint": {
     "type": "string",
-    "description": "Image edit endpoint",
-    "hint": "Used for continuity when the previous frame becomes the next reference image.",
+    "description": "图片编辑接口地址",
+    "hint": "用于保持连续性，让上一帧作为下一帧的参考图。",
     "default": "/images/edits"
   },
   "prefer_edit_for_continuity": {
     "type": "bool",
-    "description": "Prefer image edit endpoint for continuity",
-    "hint": "If disabled or unsupported, the plugin will continue with text-only prompts.",
+    "description": "优先使用图片编辑接口保持连续性",
+    "hint": "如果关闭或接口不支持，插件会退回到仅使用文本提示词继续生成。",
     "default": true
   },
   "image_size": {
     "type": "string",
-    "description": "Generated image size",
-    "hint": "Example: 1024x1024",
+    "description": "生成图片尺寸",
+    "hint": "示例：1024x1024",
     "default": "1024x1024"
   },
   "response_format": {
     "type": "string",
-    "description": "Requested image response format",
+    "description": "请求的图片返回格式",
     "options": ["auto", "b64_json", "url"],
     "default": "auto"
   },
   "timeout_seconds": {
     "type": "int",
-    "description": "HTTP timeout in seconds",
+    "description": "HTTP 超时时间（秒）",
     "default": 120
   },
   "default_frames": {
     "type": "int",
-    "description": "Default frame count when omitted",
+    "description": "未填写时的默认帧数",
     "default": 4
   },
   "max_frames": {
     "type": "int",
-    "description": "Maximum frame count allowed by the plugin",
-    "hint": "The runtime clamps the requested count to this value.",
+    "description": "插件允许的最大帧数",
+    "hint": "运行时会把用户请求的帧数限制在这个值以内。",
     "default": 6
   },
   "image_only_prompt": {
     "type": "string",
-    "description": "Fallback prompt for image-only input",
-    "default": "Continue the same scene with coherent characters, style, and motion."
+    "description": "仅上传图片时使用的默认提示词",
+    "default": "延续同一场景，保持角色、风格与动作连贯。"
   },
   "show_reference_as_first_frame": {
     "type": "bool",
-    "description": "Show the uploaded or quoted reference image as frame 1",
-    "hint": "When enabled, a user-provided reference image is returned as the first frame and generation starts from frame 2.",
+    "description": "将上传或引用的参考图直接作为第 1 帧返回",
+    "hint": "开启后，用户提供的参考图会直接作为第 1 帧发送，实际生成从第 2 帧开始。",
     "default": true
   },
   "allow_reply_image_as_reference": {
     "type": "bool",
-    "description": "Allow replied image messages as reference input",
+    "description": "允许将回复中的图片作为参考输入",
     "default": true
   },
   "show_generated_prompt": {
     "type": "bool",
-    "description": "Show the actual prompt together with each frame",
+    "description": "在每一帧旁显示实际使用的提示词",
     "default": true
   },
   "auto_plan_prompts": {
     "type": "bool",
-    "description": "Use an LLM to auto-plan per-frame prompts",
-    "hint": "If disabled or unavailable, the plugin falls back to deterministic continuity prompts.",
+    "description": "使用 LLM 自动规划逐帧提示词",
+    "hint": "如果关闭或不可用，插件会回退到固定规则生成的连续性提示词。",
     "default": true
   },
   "prompt_planner_provider_id": {
     "type": "string",
-    "description": "Prompt planner provider ID",
+    "description": "提示词规划器 provider ID",
     "_special": "select_provider",
-    "hint": "Optional. Leave empty to reuse the current chat provider.",
+    "hint": "可选。留空时复用当前会话 provider。",
     "default": ""
   },
   "use_current_provider_for_prompt_planner": {
     "type": "bool",
-    "description": "Reuse the current chat provider for prompt planning when planner provider is empty",
+    "description": "当规划器 provider 为空时，复用当前会话 provider 进行提示词规划",
     "default": true
   },
   "prompt_planner_model": {
     "type": "string",
-    "description": "Override model for prompt planning",
-    "hint": "Optional. Leave empty to use the planner provider default model.",
+    "description": "覆盖提示词规划时使用的模型",
+    "hint": "可选。留空时使用规划器 provider 的默认模型。",
     "default": ""
   },
   "planner_use_image_context": {
     "type": "bool",
-    "description": "Send the previous frame image to the prompt planner when possible",
-    "hint": "Requires the planner provider to support image understanding.",
+    "description": "在可能时把上一帧图片发送给提示词规划器",
+    "hint": "要求规划器 provider 支持图像理解能力。",
     "default": true
   },
   "prompt_output_language": {
     "type": "string",
-    "description": "Prompt output language",
+    "description": "提示词输出语言",
     "options": ["english", "chinese", "auto"],
-    "hint": "English is usually safer for image APIs.",
+    "hint": "对多数图片接口来说，英文提示词通常更稳妥。",
     "default": "english"
   }
 }

@@ -45,7 +45,7 @@ class FramePlan:
 
 
 class Main(star.Star):
-    """Generate sequential images with optional reference continuity."""
+    """生成连续分镜图片，可选参考图续画。"""
 
     def __init__(
         self, context: star.Context, config: AstrBotConfig | None = None
@@ -55,17 +55,17 @@ class Main(star.Star):
 
     @filter.command_group("manhua", alias={"mh"})
     def manhua(self) -> None:
-        """Sequential image commands."""
+        """连续分镜命令。"""
 
     @manhua.command("help")
     async def manhua_help(self, event: AstrMessageEvent) -> None:
         lines = [
-            "Sequential image plugin",
-            "Command: manhua draw [count] <prompt>",
-            "Alias: mh draw [count] <prompt>",
-            "Count defaults to the plugin config and is clamped to max_frames.",
-            "Upload one image or reply to an image to use it as the starting frame.",
-            "Examples:",
+            "连续分镜插件",
+            "命令：manhua draw [count] <prompt>",
+            "别名：mh draw [count] <prompt>",
+            "未填写 count 时使用插件默认值，并受 max_frames 限制。",
+            "可以直接上传图片，或回复一张图片作为起始参考图。",
+            "示例：",
             "  manhua draw 4 cyberpunk detective chasing a suspect at night",
             "  mh draw 6 a fox spirit crossing four seasons",
         ]
@@ -81,30 +81,30 @@ class Main(star.Star):
         )
         if requested_count != frame_count:
             yield event.plain_result(
-                f"Frame count adjusted to {frame_count} by plugin limits."
+                f"帧数已按插件限制调整为 {frame_count}。"
             )
 
         seed_image_path = await self._extract_seed_image(event)
         if not user_prompt and not seed_image_path:
             yield event.plain_result(
-                "Missing prompt and reference image. Use `manhua draw [count] <prompt>` "
-                "or upload/reply to one image."
+                "缺少提示词和参考图。请使用 `manhua draw [count] <prompt>`，"
+                "或直接上传/回复一张图片。"
             )
             return
 
         story_prompt = user_prompt or self._cfg_str(
             "image_only_prompt",
-            "Continue the same scene with coherent characters, style, and motion.",
+            "延续同一场景，保持角色、风格与动作连贯。",
         )
 
         try:
             client_cfg = await self._resolve_client_config(event)
         except Exception as exc:
-            yield event.plain_result(f"Image backend config error: {exc}")
+            yield event.plain_result(f"图片后端配置错误：{exc}")
             return
 
         yield event.plain_result(
-            f"Preparing {frame_count} frame(s) with {client_cfg.source_label}..."
+            f"正在使用 {client_cfg.source_label} 准备 {frame_count} 帧分镜..."
         )
 
         prompt_history: list[str] = []
@@ -116,9 +116,9 @@ class Main(star.Star):
         if seed_image_path and self._cfg_bool("show_reference_as_first_frame", True):
             reference_plan = FramePlan(
                 index=1,
-                caption="Reference start frame supplied by the user.",
+                caption="用户提供的参考图，作为起始帧。",
                 prompt=story_prompt,
-                source="reference",
+                source="参考图",
             )
             prompt_history.append(reference_plan.prompt)
             yield event.chain_result(
@@ -168,7 +168,7 @@ class Main(star.Star):
                             if not continuity_fallback_notified:
                                 continuity_fallback_notified = True
                                 yield event.plain_result(
-                                    "Image edit endpoint failed. Falling back to text-only continuity."
+                                    "图片编辑接口调用失败，已回退到仅文本方式继续生成。"
                                 )
 
                     if image_path is None:
@@ -193,7 +193,7 @@ class Main(star.Star):
                     )
         except Exception as exc:
             logger.error("Failed to generate sequential images: %s", exc)
-            yield event.plain_result(f"Generation failed: {exc}")
+            yield event.plain_result(f"生成失败：{exc}")
 
     def _build_frame_chain(
         self,
@@ -203,10 +203,10 @@ class Main(star.Star):
         image_path: Path,
         include_prompt: bool,
     ) -> list[Plain | Image]:
-        lines = [f"Frame {frame_plan.index}/{frame_count}", frame_plan.caption]
+        lines = [f"第 {frame_plan.index}/{frame_count} 帧", frame_plan.caption]
         if include_prompt:
-            lines.append(f"Prompt: {frame_plan.prompt}")
-        lines.append(f"Source: {frame_plan.source}")
+            lines.append(f"提示词：{frame_plan.prompt}")
+        lines.append(f"来源：{frame_plan.source}")
         return [
             Plain("\n".join(line for line in lines if line).strip()),
             Image.fromFileSystem(str(image_path)),
@@ -427,7 +427,7 @@ class Main(star.Star):
                 index=frame_index,
                 caption=default_plan.caption,
                 prompt=cleaned,
-                source="planner_text",
+                source="规划器原始文本",
             )
 
         caption = str(payload.get("caption", "")).strip() or default_plan.caption
@@ -436,7 +436,7 @@ class Main(star.Star):
             index=frame_index,
             caption=caption,
             prompt=prompt,
-            source="planner_llm",
+            source="LLM 规划",
         )
 
     def _build_fallback_frame_plan(
@@ -448,28 +448,26 @@ class Main(star.Star):
         has_reference: bool,
     ) -> FramePlan:
         if frame_index == 1 and not has_reference:
-            caption = "Opening frame generated from the user's request."
+            caption = "根据用户请求生成的开场画面。"
             prompt = (
                 f"{story_prompt}\n\n"
-                f"Generate frame {frame_index}/{frame_count}. "
-                "Establish the main subject, visual style, lighting, and environment clearly."
+                f"生成第 {frame_index}/{frame_count} 帧。"
+                "清晰建立主体、视觉风格、光照与环境。"
             )
         else:
-            caption = (
-                "Continue the sequence with consistent characters and scene logic."
-            )
+            caption = "延续当前分镜，保持角色与场景逻辑一致。"
             prompt = (
                 f"{story_prompt}\n\n"
-                f"Generate frame {frame_index}/{frame_count}. "
-                "Continue directly from the previous frame. Preserve character identity, outfit, "
-                "camera language, and color palette while introducing clear forward motion."
+                f"生成第 {frame_index}/{frame_count} 帧。"
+                "直接承接上一帧。保持角色身份、服装、镜头语言与色彩一致，"
+                "同时加入明确的前进动作或情节推进。"
             )
 
         return FramePlan(
             index=frame_index,
             caption=caption,
             prompt=prompt,
-            source="fallback",
+            source="规则回退",
         )
 
     async def _resolve_prompt_planner_provider_id(self, event: AstrMessageEvent) -> str:
@@ -509,8 +507,8 @@ class Main(star.Star):
                     raise
 
         raise RuntimeError(
-            f"No available image backend. astrbot_provider error: {astrbot_error}; "
-            f"openai_compatible error: {manual_error}"
+            f"没有可用的图片后端。astrbot_provider 错误：{astrbot_error}；"
+            f"openai_compatible 错误：{manual_error}"
         )
 
     async def _resolve_from_astrbot_provider(
@@ -530,11 +528,11 @@ class Main(star.Star):
             provider_id = provider_inst.meta().id if provider_inst else ""
 
         if not provider_id:
-            raise RuntimeError("No provider id available.")
+            raise RuntimeError("没有可用的 provider ID。")
 
         provider = self.context.get_provider_by_id(provider_id)
         if not isinstance(provider, Provider):
-            raise RuntimeError(f"Provider `{provider_id}` is not a chat provider.")
+            raise RuntimeError(f"Provider `{provider_id}` 不是聊天 provider。")
 
         provider_cfg = provider.provider_config or {}
         model = (
@@ -543,7 +541,7 @@ class Main(star.Star):
         )
         if not model:
             raise RuntimeError(
-                f"Provider `{provider_id}` has no model. Set plugin `image_model`."
+                f"Provider `{provider_id}` 没有配置模型，请在插件中设置 `image_model`。"
             )
 
         api_key = ""
@@ -575,7 +573,7 @@ class Main(star.Star):
     def _resolve_from_manual_openai(self) -> ImageClientConfig:
         model = self._cfg_str("image_model", "")
         if not model:
-            raise RuntimeError("`image_model` is required for openai_compatible mode.")
+            raise RuntimeError("openai_compatible 模式下必须填写 `image_model`。")
 
         return ImageClientConfig(
             source_label="openai_compatible",
@@ -705,10 +703,10 @@ class Main(star.Star):
     ) -> Path:
         data = payload.get("data")
         if not isinstance(data, list) or not data:
-            raise RuntimeError(f"Invalid image payload: {payload}")
+            raise RuntimeError(f"无效的图片响应数据：{payload}")
         item = data[0]
         if not isinstance(item, dict):
-            raise RuntimeError(f"Invalid image entry: {item}")
+            raise RuntimeError(f"无效的图片数据项：{item}")
 
         b64_data = item.get("b64_json") or item.get("base64")
         if isinstance(b64_data, str) and b64_data:
@@ -716,7 +714,7 @@ class Main(star.Star):
 
         image_url = item.get("url") or item.get("image_url")
         if not isinstance(image_url, str) or not image_url:
-            raise RuntimeError(f"No image found in payload: {item}")
+            raise RuntimeError(f"响应中没有找到图片数据：{item}")
         if image_url.startswith("data:image"):
             return self._save_data_uri_image(temp_dir, image_url)
         return await self._download_image(client, cfg, image_url, temp_dir)
@@ -727,7 +725,7 @@ class Main(star.Star):
         try:
             raw = base64.b64decode(b64_data)
         except Exception as exc:
-            raise RuntimeError(f"Invalid base64 image data: {exc}") from exc
+            raise RuntimeError(f"无效的 base64 图片数据：{exc}") from exc
         ext = self._guess_image_ext(raw)
         path = temp_dir / f"manhua_{uuid.uuid4().hex}{ext}"
         path.write_bytes(raw)
@@ -736,7 +734,7 @@ class Main(star.Star):
     def _save_data_uri_image(self, temp_dir: Path, data_uri: str) -> Path:
         _, _, b64_data = data_uri.partition(",")
         if not b64_data:
-            raise RuntimeError("Invalid data URI image payload.")
+            raise RuntimeError("无效的 data URI 图片数据。")
         return self._save_base64_image(temp_dir, b64_data)
 
     async def _download_image(
@@ -749,7 +747,7 @@ class Main(star.Star):
         response = await client.get(image_url, headers=self._auth_headers(cfg))
         if not response.is_success:
             raise RuntimeError(
-                f"Failed to download generated image: HTTP {response.status_code}"
+                f"下载生成图片失败：HTTP {response.status_code}"
             )
         raw = response.content
         content_type = response.headers.get("content-type", "").split(";")[0].strip()
