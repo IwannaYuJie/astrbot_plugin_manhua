@@ -1,0 +1,142 @@
+{
+  "source_mode": {
+    "type": "string",
+    "description": "Image backend mode",
+    "options": ["auto", "astrbot_provider", "openai_compatible"],
+    "hint": "auto tries the selected AstrBot provider first and then falls back to the plugin-local OpenAI-compatible settings.",
+    "default": "auto"
+  },
+  "astrbot_provider_id": {
+    "type": "string",
+    "description": "AstrBot image provider ID",
+    "_special": "select_provider",
+    "hint": "Used when source_mode is astrbot_provider or auto.",
+    "default": ""
+  },
+  "use_current_provider_when_empty": {
+    "type": "bool",
+    "description": "Use the current chat provider when provider ID is empty",
+    "default": true
+  },
+  "openai_base_url": {
+    "type": "string",
+    "description": "OpenAI-compatible base URL",
+    "hint": "Example: https://api.openai.com/v1",
+    "default": ""
+  },
+  "openai_api_key": {
+    "type": "string",
+    "description": "OpenAI-compatible API key",
+    "default": ""
+  },
+  "image_model": {
+    "type": "string",
+    "description": "Image model name",
+    "hint": "Example: gpt-image-1 or any model exposed by your image API.",
+    "default": ""
+  },
+  "generation_endpoint": {
+    "type": "string",
+    "description": "Text-to-image endpoint",
+    "hint": "Can be a full URL or a relative path such as /images/generations.",
+    "default": "/images/generations"
+  },
+  "edit_endpoint": {
+    "type": "string",
+    "description": "Image edit endpoint",
+    "hint": "Used for continuity when the previous frame becomes the next reference image.",
+    "default": "/images/edits"
+  },
+  "prefer_edit_for_continuity": {
+    "type": "bool",
+    "description": "Prefer image edit endpoint for continuity",
+    "hint": "If disabled or unsupported, the plugin will continue with text-only prompts.",
+    "default": true
+  },
+  "image_size": {
+    "type": "string",
+    "description": "Generated image size",
+    "hint": "Example: 1024x1024",
+    "default": "1024x1024"
+  },
+  "response_format": {
+    "type": "string",
+    "description": "Requested image response format",
+    "options": ["auto", "b64_json", "url"],
+    "default": "auto"
+  },
+  "timeout_seconds": {
+    "type": "int",
+    "description": "HTTP timeout in seconds",
+    "default": 120
+  },
+  "default_frames": {
+    "type": "int",
+    "description": "Default frame count when omitted",
+    "default": 4
+  },
+  "max_frames": {
+    "type": "int",
+    "description": "Maximum frame count allowed by the plugin",
+    "hint": "The runtime clamps the requested count to this value.",
+    "default": 6
+  },
+  "image_only_prompt": {
+    "type": "string",
+    "description": "Fallback prompt for image-only input",
+    "default": "Continue the same scene with coherent characters, style, and motion."
+  },
+  "show_reference_as_first_frame": {
+    "type": "bool",
+    "description": "Show the uploaded or quoted reference image as frame 1",
+    "hint": "When enabled, a user-provided reference image is returned as the first frame and generation starts from frame 2.",
+    "default": true
+  },
+  "allow_reply_image_as_reference": {
+    "type": "bool",
+    "description": "Allow replied image messages as reference input",
+    "default": true
+  },
+  "show_generated_prompt": {
+    "type": "bool",
+    "description": "Show the actual prompt together with each frame",
+    "default": true
+  },
+  "auto_plan_prompts": {
+    "type": "bool",
+    "description": "Use an LLM to auto-plan per-frame prompts",
+    "hint": "If disabled or unavailable, the plugin falls back to deterministic continuity prompts.",
+    "default": true
+  },
+  "prompt_planner_provider_id": {
+    "type": "string",
+    "description": "Prompt planner provider ID",
+    "_special": "select_provider",
+    "hint": "Optional. Leave empty to reuse the current chat provider.",
+    "default": ""
+  },
+  "use_current_provider_for_prompt_planner": {
+    "type": "bool",
+    "description": "Reuse the current chat provider for prompt planning when planner provider is empty",
+    "default": true
+  },
+  "prompt_planner_model": {
+    "type": "string",
+    "description": "Override model for prompt planning",
+    "hint": "Optional. Leave empty to use the planner provider default model.",
+    "default": ""
+  },
+  "planner_use_image_context": {
+    "type": "bool",
+    "description": "Send the previous frame image to the prompt planner when possible",
+    "hint": "Requires the planner provider to support image understanding.",
+    "default": true
+  },
+  "prompt_output_language": {
+    "type": "string",
+    "description": "Prompt output language",
+    "options": ["english", "chinese", "auto"],
+    "hint": "English is usually safer for image APIs.",
+    "default": "english"
+  }
+}
