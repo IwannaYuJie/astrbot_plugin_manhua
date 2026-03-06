@@ -70,6 +70,12 @@
     "description": "HTTP 超时时间（秒）",
     "default": 120
   },
+  "temp_file_ttl_seconds": {
+    "type": "int",
+    "description": "插件临时图片缓存保留时长（秒）",
+    "hint": "每次执行命令前会清理早于该时长的历史生成图片。设为 0 或负数可关闭自动清理。",
+    "default": 86400
+  },
   "frame_retry_attempts": {
     "type": "int",
     "description": "单帧生成失败后的重试次数",

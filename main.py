@@ -4,6 +4,7 @@ import base64
 import json
 import mimetypes
 import re
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -109,6 +110,7 @@ class Main(star.Star):
 
         prompt_history: list[str] = []
         temp_dir = self._temp_dir()
+        self._cleanup_expired_temp_files(temp_dir)
         continuity_fallback_notified = False
         previous_frame: Path | None = seed_image_path
         next_index = 1
@@ -843,6 +845,33 @@ class Main(star.Star):
         path = Path(get_astrbot_temp_path()) / "astrbot_plugin_manhua"
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    def _cleanup_expired_temp_files(self, temp_dir: Path) -> None:
+        ttl_seconds = self._cfg_int("temp_file_ttl_seconds", 86400)
+        if ttl_seconds <= 0:
+            return
+
+        cutoff = time.time() - ttl_seconds
+        removed_count = 0
+        for path in temp_dir.iterdir():
+            if not path.is_file() or not path.name.startswith("manhua_"):
+                continue
+            try:
+                if path.stat().st_mtime >= cutoff:
+                    continue
+                path.unlink(missing_ok=True)
+                removed_count += 1
+            except FileNotFoundError:
+                continue
+            except Exception as exc:
+                logger.warning("Failed to clean up temp image `%s`: %s", path, exc)
+
+        if removed_count:
+            logger.info(
+                "Cleaned up %s expired temp images from `%s`.",
+                removed_count,
+                temp_dir,
+            )
 
     def _cfg_str(self, key: str, default: str = "") -> str:
         value = self.config.get(key, default)
