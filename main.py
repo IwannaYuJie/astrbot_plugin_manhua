@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import mimetypes
@@ -21,6 +22,9 @@ from astrbot.core.utils.quoted_message.extractor import extract_quoted_message_i
 
 MIN_FRAMES = 1
 MAX_FRAMES_FALLBACK = 12
+COMMAND_GROUP = "manhua"
+COMMAND_ALIASES = {"mh"}
+DRAW_COMMAND = "draw"
 
 
 @dataclass(slots=True)
@@ -54,7 +58,7 @@ class Main(star.Star):
         super().__init__(context, config=config)
         self.config = config if config is not None else {}
 
-    @filter.command_group("manhua", alias={"mh"})
+    @filter.command_group(COMMAND_GROUP, alias=COMMAND_ALIASES)
     def manhua(self, event: AstrMessageEvent) -> None:
         """连续分镜命令。"""
 
@@ -72,7 +76,7 @@ class Main(star.Star):
         ]
         yield event.plain_result("\n".join(lines))
 
-    @manhua.command("draw")
+    @manhua.command(DRAW_COMMAND)
     async def manhua_draw(self, event: AstrMessageEvent) -> None:
         args = self._extract_draw_args(event.get_message_str())
         requested_count, user_prompt = self._parse_draw_args(args)
@@ -269,7 +273,8 @@ class Main(star.Star):
 
     def _extract_draw_args(self, message_text: str) -> str:
         text = re.sub(r"\s+", " ", (message_text or "").strip())
-        prefixes = ("manhua draw", "mh draw")
+        aliases = [COMMAND_GROUP, *sorted(COMMAND_ALIASES)]
+        prefixes = tuple(f"{alias} {DRAW_COMMAND}" for alias in aliases)
         for prefix in prefixes:
             if text == prefix:
                 return ""
@@ -705,20 +710,34 @@ class Main(star.Star):
         payload: dict[str, Any],
     ) -> dict[str, Any]:
         current_payload = dict(payload)
-        for attempt in range(2):
-            response = await client.post(
-                url,
-                headers=self._auth_headers(cfg),
-                json=current_payload,
-            )
+        max_attempts = max(1, self._cfg_int("request_retry_attempts", 1) + 1)
+        backoff = max(0.0, self._cfg_float("request_retry_backoff_seconds", 0.8))
+        response_format_fallback_used = False
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = await client.post(
+                    url,
+                    headers=self._auth_headers(cfg),
+                    json=current_payload,
+                )
+            except httpx.RequestError as exc:
+                if attempt < max_attempts:
+                    await asyncio.sleep(backoff * (2 ** (attempt - 1)))
+                    continue
+                raise RuntimeError(f"请求失败（{url}）：{exc}") from exc
             if response.is_success:
                 return response.json()
             if (
-                attempt == 0
+                not response_format_fallback_used
                 and "response_format" in current_payload
                 and response.status_code in {400, 422}
             ):
+                response_format_fallback_used = True
                 current_payload.pop("response_format", None)
+                continue
+            if response.status_code >= 500 and attempt < max_attempts:
+                await asyncio.sleep(backoff * (2 ** (attempt - 1)))
                 continue
             raise RuntimeError(
                 f"HTTP {response.status_code} on {url}: {response.text[:300]}"
@@ -734,21 +753,35 @@ class Main(star.Star):
         files: dict[str, tuple[str, bytes, str]],
     ) -> dict[str, Any]:
         current_data = dict(data)
-        for attempt in range(2):
-            response = await client.post(
-                url,
-                headers=self._auth_headers(cfg),
-                data=current_data,
-                files=files,
-            )
+        max_attempts = max(1, self._cfg_int("request_retry_attempts", 1) + 1)
+        backoff = max(0.0, self._cfg_float("request_retry_backoff_seconds", 0.8))
+        response_format_fallback_used = False
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = await client.post(
+                    url,
+                    headers=self._auth_headers(cfg),
+                    data=current_data,
+                    files=files,
+                )
+            except httpx.RequestError as exc:
+                if attempt < max_attempts:
+                    await asyncio.sleep(backoff * (2 ** (attempt - 1)))
+                    continue
+                raise RuntimeError(f"请求失败（{url}）：{exc}") from exc
             if response.is_success:
                 return response.json()
             if (
-                attempt == 0
+                not response_format_fallback_used
                 and "response_format" in current_data
                 and response.status_code in {400, 422}
             ):
+                response_format_fallback_used = True
                 current_data.pop("response_format", None)
+                continue
+            if response.status_code >= 500 and attempt < max_attempts:
+                await asyncio.sleep(backoff * (2 ** (attempt - 1)))
                 continue
             raise RuntimeError(
                 f"HTTP {response.status_code} on {url}: {response.text[:300]}"
@@ -883,6 +916,13 @@ class Main(star.Star):
         value = self.config.get(key, default)
         try:
             return int(value)
+        except Exception:
+            return default
+
+    def _cfg_float(self, key: str, default: float) -> float:
+        value = self.config.get(key, default)
+        try:
+            return float(value)
         except Exception:
             return default
 
